@@ -1,0 +1,1 @@
+from pydantic_settings import BaseSettingsclass Settings(BaseSettings):    DATABASE_URL: str = "mysql+pymysql://root:root@localhost:3306/ocr_db"    UPLOAD_DIR: str = "./_uploads"    MAX_FILE_BYTES: int = 10 * 1024 * 1024  # 10MB    CORS_ALLOW_ORIGINS: list[str] = ["*"]settings = Settings()

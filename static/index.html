@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OCR Text Extraction Tool</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    body {
+      background-color: #121212;
+      color: #ffffff; /* Force white text */
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    h2 {
+      color: #0d6efd;
+      font-weight: bold;
+      text-shadow: 0 0 8px rgba(13, 110, 253, 0.7);
+    }
+
+    .card {
+      background: #1e1e1e;
+      border: none;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      color: #ffffff;
+    }
+
+    label, .form-label, .form-check-label {
+      color: #ffffff !important; /* Labels white */
+    }
+
+    input, select, .form-control, .form-select {
+      background-color: #2a2a2a !important;
+      color: #ffffff !important; /* White text in inputs */
+      border: 1px solid #444;
+    }
+
+    input::file-selector-button {
+      background: #0d6efd;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: linear-gradient(90deg, #0d6efd, #1a73e8);
+      border: none;
+      font-weight: 600;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .btn-primary:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 12px rgba(13, 110, 253, 0.8);
+    }
+
+    .table-container {
+      max-height: 400px;
+      overflow-y: auto;
+      border-radius: 8px;
+    }
+
+    table {
+      color: #ffffff !important; /* Force white text */
+    }
+
+    thead {
+      background: #0d6efd;
+      color: #ffffff;
+      position: sticky;
+      top: 0;
+    }
+
+    tbody tr:hover {
+      background-color: rgba(13, 110, 253, 0.2);
+      cursor: pointer;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1e1e1e;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #0d6efd;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container py-4">
+    <h2 class="text-center mb-4">📄 OCR Text Extraction Tool</h2>
+
+    <!-- Upload Section -->
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <form id="uploadForm">
+          <div class="mb-3">
+            <label for="fileInput" class="form-label">Upload Document (PDF/TIFF, max 10MB)</label>
+            <input class="form-control" type="file" id="fileInput" accept=".pdf,.tiff,.tif" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Select OCR Engine</label>
+            <div class="d-flex gap-3">
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="ocrEngine" id="tesseract" value="tesseract" checked>
+                <label class="form-check-label" for="tesseract">🟦 Tesseract</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="ocrEngine" id="paddleocr" value="paddle">
+                <label class="form-check-label" for="paddleocr">🟨 PaddleOCR</label>
+              </div>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">🚀 Start OCR</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Results Section -->
+    <div id="resultsSection" class="card shadow-sm d-none">
+      <div class="card-body">
+        <h5 class="mb-3">📊 OCR Results</h5>
+        <div class="table-container">
+          <table class="table table-dark table-striped table-hover">
+            <thead>
+              <tr>
+                <th>Line #</th>
+                <th>Text</th>
+                <th>X</th>
+                <th>Y</th>
+                <th>Width</th>
+                <th>Height</th>
+              </tr>
+            </thead>
+            <tbody id="resultsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+ <script>
+document.getElementById("uploadForm").addEventListener("submit", async function(e) {
+  e.preventDefault();
+
+  const fileInput = document.getElementById("fileInput");
+  const file = fileInput.files[0];
+  if (!file) {
+    alert("⚠️ Please upload a file.");
+    return;
+  }
+
+  // File format validation
+  const allowedExtensions = [".pdf", ".tif", ".tiff"];
+  const fileName = file.name.toLowerCase();
+  if (!allowedExtensions.some(ext => fileName.endsWith(ext))) {
+    alert("❌ Unsupported file format! Please upload only PDF or TIFF files.");
+    return;
+  }
+
+  // File size validation (10MB max)
+  if (file.size > 10 * 1024 * 1024) {
+    alert("⚠️ File too large! Please upload a file smaller than 10MB.");
+    return;
+  }
+
+  // OCR engine selection
+  const engine = document.querySelector('input[name="ocrEngine"]:checked').value;
+
+  // Prepare form data
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    // Step 1: Upload file and trigger OCR
+    const uploadResp = await fetch(`/upload?engine=${engine}`, {
+      method: "POST",
+      body: formData
+    });
+
+    if (!uploadResp.ok) {
+      throw new Error(await uploadResp.text());
+    }
+
+    const uploadData = await uploadResp.json();
+    console.log("Upload response:", uploadData);
+
+    // Step 2: Fetch results from backend
+    const resultsResp = await fetch(`/results?file_name=${encodeURIComponent(uploadData.file_name)}`);
+    if (!resultsResp.ok) {
+      throw new Error(await resultsResp.text());
+    }
+
+    const resultsData = await resultsResp.json();
+    console.log("Results:", resultsData);
+
+    // Step 3: Render table
+    const resultsTable = document.getElementById("resultsTable");
+    resultsTable.innerHTML = "";
+
+    resultsData.items.forEach(row => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${row.line_number}</td>
+        <td>${row.line_text}</td>
+        <td>${row.x}</td>
+        <td>${row.y}</td>
+        <td>${row.width}</td>
+        <td>${row.height}</td>
+      `;
+      resultsTable.appendChild(tr);
+    });
+
+    // Show results section
+    document.getElementById("resultsSection").classList.remove("d-none");
+
+  } catch (err) {
+    console.error("Error:", err);
+    alert("❌ Error: " + err.message);
+  }
+});
+</script>
+
+
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
